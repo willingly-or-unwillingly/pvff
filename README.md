@@ -22,9 +22,10 @@ To build `pvf`, you need to have `make` and `clang` (or another compatible C com
 ```bash
 git clone https://github.com/willingly-or-unwillingly/pvf.git
 cd pvf
-Build
-Run the following command to compile the project:
 ```
+## Build
+Run the following command to compile the project:
+
 ```bash
 make
 ```
