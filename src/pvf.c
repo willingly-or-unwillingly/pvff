@@ -5,6 +5,10 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#include <sys/user.h>
+#include <libprocstat.h>
 #include <time.h>
 
 #define BAR_WIDTH 50
@@ -48,6 +52,18 @@ void print_completion_time() {
     printf("\nProcess completed at: %s\n", time_string);
 }
 
+void print_remaining_time(double speed, long remaining_bytes) {
+    if (speed > 0) {
+        double remaining_time_sec = remaining_bytes / speed;
+        int hours = (int)(remaining_time_sec / 3600);
+        int minutes = (int)((remaining_time_sec - (hours * 3600)) / 60);
+        int seconds = (int)(remaining_time_sec - (hours * 3600) - (minutes * 60));
+
+        printf("Estimated time remaining: %02d:%02d:%02d\r", hours, minutes, seconds);
+        fflush(stdout);
+    }
+}
+
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         usage(argv[0]);
@@ -78,69 +94,55 @@ int main(int argc, char *argv[]) {
     }
 
     int spin_index = 0;
-//    double last_percentage = -1.0;
+    long previous_pos = 0;
+    time_t previous_time = time(NULL);
 
     do {
-        DIR *proc_dir;
-        struct dirent *proc_entry;
-        char fd_path[256];
-        char link_path[256];
-        char resolved_path[256];
+        struct procstat *procstat;
+        struct kinfo_proc *procs;
+        unsigned int nprocs;
         int found = 0;
         long pos = 0;
 
-        proc_dir = opendir("/proc");
-        if (!proc_dir) {
-            perror("opendir");
+        procstat = procstat_open_sysctl();
+        if (procstat == NULL) {
+            perror("procstat_open_sysctl");
             return 1;
         }
 
-        // Iterate through the /proc directory to find process directories
-        while ((proc_entry = readdir(proc_dir)) != NULL) {
-            // Check if the entry is a PID directory
-            if (proc_entry->d_type == DT_DIR && atoi(proc_entry->d_name) > 0) {
-                snprintf(fd_path, sizeof(fd_path), "/proc/%s/fd", proc_entry->d_name);
-                DIR *fd_dir = opendir(fd_path);
+        procs = procstat_getprocs(procstat, KERN_PROC_PROC, 0, &nprocs);
+        if (procs == NULL) {
+            perror("procstat_getprocs");
+            procstat_close(procstat);
+            return 1;
+        }
 
-                if (!fd_dir) {
-                    continue;
-                }
+        for (unsigned int i = 0; i < nprocs; i++) {
+            struct filestat_list *head;
+            struct filestat *fst;
 
-                struct dirent *fd_entry;
-                // Iterate through the file descriptors of each process
-                while ((fd_entry = readdir(fd_dir)) != NULL) {
-                    snprintf(link_path, sizeof(link_path), "%s/%s", fd_path, fd_entry->d_name);
-                    ssize_t len = readlink(link_path, resolved_path, sizeof(resolved_path) - 1);
-                    if (len != -1) {
-                        resolved_path[len] = '\0';
-                        if (strcmp(resolved_path, filename) == 0) {
-                            found = 1;
+            head = procstat_getfiles(procstat, &procs[i], 0);
+            if (head == NULL) {
+                continue;
+            }
 
-                            // Read position from /proc/[pid]/fdinfo/[fd]
-                            char fdinfo_path[256];
-                            snprintf(fdinfo_path, sizeof(fdinfo_path), "/proc/%s/fdinfo/%s", proc_entry->d_name, fd_entry->d_name);
-                            FILE *fdinfo_file = fopen(fdinfo_path, "r");
-                            if (fdinfo_file) {
-                                char line[256];
-                                while (fgets(line, sizeof(line), fdinfo_file)) {
-                                    if (sscanf(line, "pos: %ld", &pos) == 1) {
-                                        break;
-                                    }
-                                }
-                                fclose(fdinfo_file);
-                            }
-                            break;
-                        }
-                    }
-                }
-                closedir(fd_dir);
-
-                if (found) {
+            STAILQ_FOREACH(fst, head, next) {
+                if (fst->fs_path != NULL && strcmp(fst->fs_path, filename) == 0) {
+                    found = 1;
+                    pos = fst->fs_offset;
                     break;
                 }
             }
+
+            procstat_freefiles(procstat, head);
+
+            if (found) {
+                break;
+            }
         }
-        closedir(proc_dir);
+
+        procstat_freeprocs(procstat, procs);
+        procstat_close(procstat);
 
         if (!found) {
             printf("File is not open by any process or cannot be accessed.\n");
@@ -158,9 +160,20 @@ int main(int argc, char *argv[]) {
         if (total_size > 0) {
             double percentage = (double)pos / total_size * 100;
             print_progress_bar(percentage, spin_index);
-//            if (last_percentage != percentage) 
-//                    spin_index++;
-//            last_percentage = percentage;
+
+            // Calculate speed and estimate remaining time
+            time_t current_time = time(NULL);
+            double time_diff = difftime(current_time, previous_time);
+
+            if (time_diff > 0) {
+                long bytes_read = pos - previous_pos;
+                double speed = bytes_read / time_diff; // bytes per second
+                long remaining_bytes = total_size - pos;
+                print_remaining_time(speed, remaining_bytes);
+            }
+
+            previous_pos = pos;
+            previous_time = current_time;
 
             // Check if the file is completely read
             if (percentage >= 100.0) {
