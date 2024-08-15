@@ -1,4 +1,4 @@
-# Pipe Viewer for the Forgetful (pvf)
+# Pipe Viewer for the Forgetful (pvf) FreeBSD version
 
 `pvf` is a simple command-line utility designed to track the progress of a file being read by another process. It displays a progress bar showing how much of the file has been read.
 
@@ -10,7 +10,7 @@
 
 ## Prerequisites
 
-- Linux operating system (requires access to `/proc` filesystem).
+- FreeBSD operating system
 - Clang or GCC compiler.
 
 ## Building the Project
@@ -20,7 +20,7 @@ To build `pvf`, you need to have `make` and `clang` (or another compatible C com
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/willingly-or-unwillingly/pvf.git
+git clone https://github.com/willingly-or-unwillingly/pvff.git
 cd pvf
 ```
 ## Build
@@ -72,11 +72,10 @@ The progress bar displays the percentage of the file read and a spinner to indic
 ```
 
 ## How It Works
-pvf works by inspecting the /proc filesystem to find processes that have the specified file open. It reads the file descriptor information to determine how much of the file has been read.
 
 ## Limitations
-Only works on Linux systems.
-Requires permissions to access /proc and the target file.
+Only works on FreeBSD systems.
+
 ## Troubleshooting
 File is not open by any process or cannot be accessed: Ensure the file is currently being read by a process and that you have the necessary permissions.
 
@@ -93,4 +92,4 @@ make clean
 Contributions are welcome! Please open an issue or submit a pull request on GitHub.
 
 ## License
-This project is licensed under the MIT License.
+This project is licensed under the BSD License.
