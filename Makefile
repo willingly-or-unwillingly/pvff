@@ -1,45 +1,22 @@
-# Имя исполняемого файла
-TARGET = pvf
-
-# Каталоги
-SRC_DIR = src
-BIN_DIR = bin
-
-# Компилятор и флаги
 CC = clang
+
 CFLAGS = -Wall -Wextra -O2
 
-# Список исходных файлов
-SOURCES = $(wildcard $(SRC_DIR)/*.c)
+LIBS = -lprocstat
 
-# Объектные файлы
-OBJECTS = $(SOURCES:$(SRC_DIR)/%.c=$(BIN_DIR)/%.o)
+SRC_DIR = ./src
+BIN_DIR = ./bin
 
-# Цель по умолчанию
-all: $(BIN_DIR) $(BIN_DIR)/$(TARGET)
+SRC = $(SRC_DIR)/pvf.c
+TARGET = $(BIN_DIR)/pvf
 
-# Создание каталога bin
-$(BIN_DIR):
-	mkdir -p $(BIN_DIR)
+all: $(TARGET)
 
-# Компиляция
-$(BIN_DIR)/$(TARGET): $(OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $^
+$(TARGET): $(SRC)
+	@mkdir -p $(BIN_DIR)
+	$(CC) $(CFLAGS) $(SRC) -o $(TARGET) $(LIBS)
 
-# Создание объектных файлов
-$(BIN_DIR)/%.o: $(SRC_DIR)/%.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-# Очистка
 clean:
-	rm -rf $(BIN_DIR)
+	rm -f $(TARGET)
 
-# Установка
-install: $(BIN_DIR)/$(TARGET)
-	install -m 0755 $(BIN_DIR)/$(TARGET) /usr/local/bin
-
-# Деинсталляция
-uninstall:
-	rm -f /usr/local/bin/$(TARGET)
-
-.PHONY: all clean install uninstall
+.PHONY: all clean
